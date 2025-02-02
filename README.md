@@ -8,6 +8,7 @@ python -m pip install telebot uuid
 
 # Set Bot Token
 Create a Bot From: https://t.me/@botfather
+
 Enter in the edit command mode of @botfather:
 ```
 minesweeper - 开始游戏
