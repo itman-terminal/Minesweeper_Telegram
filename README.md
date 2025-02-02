@@ -8,6 +8,12 @@ python -m pip install telebot uuid
 
 # Set Bot Token
 Create a Bot From: https://t.me/@botfather
+Enter in the edit command mode of @botfather:
+```
+minesweeper - 开始游戏
+f - 放置旗子
+cancel - 不玩了
+```
 
 Set the BOT_TOKEN variable to the TOKEN you got from @botfather.
 
