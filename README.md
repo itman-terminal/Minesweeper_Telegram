@@ -16,7 +16,7 @@ f - 放置旗子
 cancel - 不玩了
 ```
 
-Set the BOT_TOKEN variable to the TOKEN you got from @botfather.
+Set the `BOT_TOKEN` variable to the TOKEN you got from @botfather.
 
 Then run it directly:
 ```shell
@@ -24,3 +24,4 @@ python ./minesweeper.py
 ```
 
 碎碎念:以后说不定会有Inline模式的游戏...但是这是以后的事了
+以及: Bot将游戏数据存放在./games.json里面了，可以使用 `/check` 命令查看游戏数据
