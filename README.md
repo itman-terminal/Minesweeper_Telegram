@@ -24,4 +24,5 @@ python ./minesweeper.py
 ```
 
 碎碎念:以后说不定会有Inline模式的游戏...但是这是以后的事了
+
 以及: Bot将游戏数据存放在./games.json里面了，可以使用 `/check` 命令查看游戏数据
