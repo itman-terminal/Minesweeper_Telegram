@@ -420,7 +420,35 @@ def flag_cell(message):
     except Exception as e:
         print(f"标记格子时发生错误: {str(e)}")
         bot.reply_to(message, "标记格子时发生错误，请检查输入格式！(>_<)")
-        
+@bot.message_handler(commands=['check'])
+def check_games(message):
+    """查看当前所有游戏的状态"""
+    try:
+        games = load_games()
+        if not games:
+            bot.reply_to(message, "当前没有进行中的游戏！(^_^)")
+            return
+
+        response = []
+        for gameid, game in games.items():
+            status = "进行中" if not game['game_over'] else "已结束"
+            info = (
+                f"🆔 [GameID] `{gameid}`\n"
+                f"👤 [用户ID] [{game['user_id']}](tg://user?id={game['user_id']})\n"
+                f"💬 [聊天ID] `{game['chat_id']}`\n"
+                f"📏 [大小] {game['size']}x{game['size']}\n"
+                f"💣 [雷数] {game['mines']}\n"
+                f"🏷️ [状态] {status}\n"
+                f"📝 [消息ID] `{game.get('message_id', 'N/A')}`\n"
+                "------------------------"
+            )
+            response.append(info)
+
+        final_msg = "当前游戏列表：\n\n" + "\n".join(response)
+        bot.reply_to(message, final_msg, parse_mode="Markdown")
+
+    except Exception as e:
+        bot.reply_to(message, f"读取游戏数据失败: {str(e)} (>_<)")
 if __name__ == "__main__":
     # 确保存储文件存在
     if not os.path.exists(GAMES_FILE):
