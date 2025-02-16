@@ -3,6 +3,7 @@ import json
 import uuid
 from telebot import TeleBot, types
 import os
+import time
 
 # 初始化机器人
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -35,6 +36,11 @@ def check_victory_conditions(game, games, gameid):
     grid = game['grid']
     revealed = set(game['revealed'])
     marked = set(game['marked'])
+    # 计算用时
+    elapsed_time = time.time() - game['start_time']
+    minutes = int(elapsed_time // 60)
+    seconds = int(elapsed_time % 60)
+    time_str = f"{minutes}分{seconds}秒"
 
     # 条件1：所有未揭开的格子都是雷
     all_mines = {(i, j) for j in range(size) for i in range(size) if grid[j][i] == -1}
@@ -50,7 +56,7 @@ def check_victory_conditions(game, games, gameid):
             message_id=game['message_id'],
             reply_markup=markup
         )
-        bot.send_message(game['chat_id'], "🎉 恭喜！你成功完成了扫雷！*^_^*")
+        bot.send_message(game['chat_id'], f"🎉 恭喜！你成功完成了扫雷！用时：{time_str} *^_^*")
         # 记录日志
         game['log'].append("游戏胜利: 所有未揭开的格子都是雷*^_^*")
         print(f"游戏日志 ({gameid}): {game['log']}")
@@ -72,7 +78,7 @@ def check_victory_conditions(game, games, gameid):
             message_id=game['message_id'],
             reply_markup=markup
         )
-        bot.send_message(game['chat_id'], "🎉 恭喜！你成功标记了所有地雷！*^_^*")
+        bot.send_message(game['chat_id'], f"🎉 恭喜！你成功完成了扫雷！用时：{time_str}  *^_^*")
         # 记录日志
         game['log'].append("游戏胜利: 所有雷都被正确标记")
         print(f"游戏日志 ({gameid}): {game['log']}")
@@ -122,6 +128,7 @@ def send_minesweeper(message):
 
         # 保存游戏数据
         games[gameid] = {
+            'start_time': time.time(),  
             'user_id': message.from_user.id,
             'chat_id': message.chat.id,
             'size': size,
@@ -267,9 +274,21 @@ def handle_callback(call):
                 message_id=call.message.message_id,
                 reply_markup=markup
             )
+        if grid[y][x] == -1:  # 踩中地雷
+            # 计算用时和标记数量
+            elapsed_time = time.time() - game['start_time']
+            minutes = int(elapsed_time // 60)
+            seconds = int(elapsed_time % 60)
+            time_str = f"{minutes}分{seconds}秒"
+            marked_count = len(game['marked'])
             
-            # 发送失败消息并删除存档
-            bot.send_message(call.message.chat.id, "💥 你踩到地雷了！游戏结束！T^T")
+            # 修改失败消息
+            bot.send_message(
+                call.message.chat.id,
+                f"💥 你踩到地雷了！游戏结束！\n" 
+                f"标记了 {marked_count} 个雷\n"
+                f"用时：{time_str} T^T"
+            )
             # 记录日志
             game['log'].append(f"游戏结束: 踩中地雷 ({x}, {y})")
             print(f"游戏日志 ({gameid}): {game['log']}")
@@ -412,7 +431,12 @@ def flag_cell(message):
             message_id=game['message_id'],
             reply_markup=markup
         )
-        bot.reply_to(message, f"已更新位置 ({x}, {y}) 的插旗状态 *^_^*")
+        remaining = game['mines'] - len(game['marked'])
+        bot.reply_to(
+            message,
+            f"已更新位置 ({x}, {y}) 的插旗状态\n"
+            f"剩余雷数：{remaining} *^_^*"
+        )
 
         # 触发胜利检查
         check_victory_conditions(game, games, gameid)
@@ -449,6 +473,70 @@ def check_games(message):
 
     except Exception as e:
         bot.reply_to(message, f"读取游戏数据失败: {str(e)} (>_<)")
+@bot.message_handler(commands=['note'])
+def send_note(message):
+    """处理 /note 命令，向所有未完成游戏的用户发送提示"""
+    try:
+        games = load_games()
+        if not games:
+            bot.reply_to(message, "当前没有进行中的游戏！(^_^)")
+            return
+
+        # 记录发送结果
+        results = []
+        count = 1
+
+        # 遍历所有游戏
+        for gameid, game in games.items():
+            if not game['game_over']:
+                user_id = game['user_id']
+                try:
+                    # 向用户发送提示消息
+                    bot.send_message(
+                        game['chat_id'],
+                        "⏰ 提醒：你有一个未完成的扫雷游戏，快来继续挑战吧！*^_^*"
+                    )
+                    # 记录成功发送
+                    results.append(f"第{count}条\n已发送: [{user_id}](tg://user?id={user_id})")
+                except Exception as e:
+                    # 记录发送失败
+                    results.append(f"第{count}条\n发送失败: {str(e)}")
+                count += 1
+
+        # 将结果拼接为最终消息
+        final_message = "发送结果：\n\n" + "\n\n".join(results)
+        bot.reply_to(message, final_message, parse_mode="Markdown")
+
+    except Exception as e:
+        bot.reply_to(message, f"发送提示时发生错误: {str(e)} (>_<)")
+@bot.message_handler(commands=['continue'])
+def continue_game(message):
+    """继续现有游戏"""
+    games = load_games()
+    user_id = message.from_user.id
+    
+    # 查找用户最新游戏
+    latest_game = None
+    for gid in list(games.keys()):
+        game = games[gid]
+        if game['user_id'] == user_id and not game['game_over']:
+            latest_game = game
+            break
+    
+    if latest_game:
+        # 更新消息ID到当前聊天
+        markup = generate_markup(latest_game, gid)
+        sent_msg = bot.send_message(
+            message.chat.id,
+            "继续你的扫雷游戏：",
+            reply_markup=markup
+        )
+        latest_game['chat_id'] = message.chat.id
+        latest_game['message_id'] = sent_msg.message_id
+        save_games(games)
+    else:
+        bot.reply_to(message, "没有找到进行中的游戏！(´･ω･`)")
+
 if __name__ == "__main__":
     # 确保存储文件存在
     if not os.path.exists(GAMES_FILE):
